@@ -1,253 +1,300 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Toko Online Saya</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f3f4f6;
-        }
-    </style>
-</head>
-<body class="bg-gray-100 min-h-screen flex flex-col items-center">
 
-    <!-- Header -->
-    <header class="w-full bg-white shadow-md p-4 sticky top-0 z-50">
-        <div class="container mx-auto flex justify-between items-center">
-            <h1 class="text-2xl font-bold text-gray-800">Toko Online</h1>
-            <button id="cart-button" class="relative p-2 bg-gray-200 rounded-full hover:bg-gray-300 transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.182 1.942.569 2.576l-.001.001A3.262 3.262 0 007 20.25a3.262 3.262 0 003.25-3.25c0-.986-.4-1.875-1.045-2.52L10 13l4-8h5.68M17 19a2 2 0 100-4 2 2 0 000 4z" />
-                </svg>
-                <span id="cart-count" class="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 transform translate-x-1/2 -translate-y-1/2 bg-red-600 rounded-full">0</span>
-            </button>
+
+/*
+E-commerce single-file React app (App.jsx)
+Instructions:
+1) Create a new Vite React app (recommended):
+   npm create vite@latest my-store -- --template react
+   cd my-store
+2) Install dependencies and Tailwind:
+   npm install
+   npm install -D tailwindcss postcss autoprefixer
+   npx tailwindcss init -p
+3) Configure Tailwind (tailwind.config.cjs):
+   module.exports = {
+     content: ['./index.html', './src/**/*.{js,jsx,ts,tsx}'],
+     theme: { extend: {} },
+     plugins: [],
+   }
+4) Add Tailwind directives to ./src/index.css:
+   @tailwind base;
+   @tailwind components;
+   @tailwind utilities;
+5) Replace ./src/App.jsx with this file. Ensure ./src/main.jsx imports './index.css'.
+6) Run: npm run dev
+
+This is a self-contained front-end demo (no backend). It includes:
+- product listing, search, filters
+- cart (localStorage)
+- product detail modal
+- checkout modal (mock)
+- responsive layout, accessible buttons
+
+Customize: connect to a backend or payments provider, swap sample data with API, add authentication, etc.
+*/
+
+import React, { useEffect, useMemo, useState } from 'react';
+
+// Sample product dataset (replace with API data)
+const SAMPLE_PRODUCTS = [
+  { id: 'p1', title: 'Sneakers Blaze', price: 89.99, category: 'Shoes', rating: 4.5, img: 'https://picsum.photos/seed/p1/600/400', stock: 12, description: 'Comfortable everyday sneakers with breathable mesh.' },
+  { id: 'p2', title: 'Classic Watch', price: 129.0, category: 'Accessories', rating: 4.7, img: 'https://picsum.photos/seed/p2/600/400', stock: 5, description: 'Minimal stainless steel watch, water resistant.' },
+  { id: 'p3', title: 'Denim Jacket', price: 69.5, category: 'Clothing', rating: 4.2, img: 'https://picsum.photos/seed/p3/600/400', stock: 20, description: 'Slim fit denim jacket - durable & stylish.' },
+  { id: 'p4', title: 'Bluetooth Headphones', price: 59.99, category: 'Electronics', rating: 4.3, img: 'https://picsum.photos/seed/p4/600/400', stock: 8, description: 'Noise-cancelling, long battery life.' },
+  { id: 'p5', title: 'Running Shorts', price: 24.99, category: 'Clothing', rating: 4.0, img: 'https://picsum.photos/seed/p5/600/400', stock: 30, description: 'Lightweight, quick-dry running shorts.' },
+  { id: 'p6', title: 'Leather Wallet', price: 39.0, category: 'Accessories', rating: 4.6, img: 'https://picsum.photos/seed/p6/600/400', stock: 15, description: 'Slim leather wallet with RFID protection.' },
+];
+
+function currency(n) {
+  return n.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' });
+}
+
+function useLocalStorageState(key, initial) {
+  const [state, setState] = useState(() => {
+    try {
+      const s = localStorage.getItem(key);
+      return s ? JSON.parse(s) : initial;
+    } catch (e) { return initial; }
+  });
+  useEffect(() => { try { localStorage.setItem(key, JSON.stringify(state)); } catch (e) {} }, [key, state]);
+  return [state, setState];
+}
+
+export default function App() {
+  const [products] = useState(SAMPLE_PRODUCTS);
+  const [query, setQuery] = useState('');
+  const [category, setCategory] = useState('All');
+  const [sort, setSort] = useState('popular');
+  const [cart, setCart] = useLocalStorageState('cart-v1', []);
+  const [selected, setSelected] = useState(null);
+  const [showCheckout, setShowCheckout] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+
+  const categories = useMemo(() => ['All', ...Array.from(new Set(products.map(p => p.category)))], [products]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    let res = products.filter(p => (
+      (category === 'All' || p.category === category) &&
+      (q === '' || p.title.toLowerCase().includes(q) || p.description.toLowerCase().includes(q))
+    ));
+    if (sort === 'price-asc') res = res.sort((a,b)=>a.price-b.price);
+    if (sort === 'price-desc') res = res.sort((a,b)=>b.price-a.price);
+    if (sort === 'rating') res = res.sort((a,b)=>b.rating-a.rating);
+    return res;
+  }, [products, query, category, sort]);
+
+  function addToCart(product, qty = 1) {
+    setCart(prev => {
+      const existing = prev.find(i => i.id === product.id);
+      if (existing) return prev.map(i => i.id === product.id ? { ...i, qty: Math.min(product.stock, i.qty + qty) } : i);
+      return [...prev, { id: product.id, title: product.title, price: product.price, qty: Math.min(product.stock, qty) }];
+    });
+  }
+
+  function updateQty(id, qty) {
+    setCart(prev => prev.map(i => i.id === id ? { ...i, qty: Math.max(1, qty) } : i));
+  }
+
+  function removeFromCart(id) { setCart(prev => prev.filter(i => i.id !== id)); }
+
+  const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
+  const shipping = subtotal > 0 ? 25000 : 0; // flat shipping example
+  const tax = subtotal * 0.1; // example 10%
+  const total = subtotal + shipping + tax;
+
+  function placeOrder({ name, address }) {
+    // Mock order placement — in real app, call backend
+    setShowCheckout(false);
+    setCart([]);
+    setSuccessMessage(`Terima kasih ${name}! Pesanan Anda sedang diproses dan akan dikirim ke ${address}.`);
+    setTimeout(()=>setSuccessMessage(''), 8000);
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 text-gray-900">
+      <header className="bg-white shadow">
+        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="text-2xl font-bold">MyStore</div>
+            <div className="hidden sm:flex items-center gap-2 text-sm text-gray-500">
+              <span>Marketplace demo</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="Cari produk..." className="border rounded-md px-3 py-1 w-48 focus:outline-none focus:ring" />
+            </div>
+            <button onClick={()=>setShowCheckout(true)} className="px-3 py-2 bg-indigo-600 text-white rounded-md shadow">Checkout ({cart.length})</button>
+          </div>
         </div>
-    </header>
+      </header>
 
-    <main class="container mx-auto p-4 flex-grow">
-        <!-- Product List -->
-        <section id="product-list" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            <!-- Products will be injected here by JavaScript -->
+      <main className="max-w-6xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
+        <aside className="lg:col-span-1 space-y-4">
+          <div className="bg-white p-4 rounded-lg shadow">
+            <h3 className="font-semibold mb-2">Kategori</h3>
+            <select value={category} onChange={(e)=>setCategory(e.target.value)} className="w-full border rounded px-2 py-1">
+              {categories.map(c=> <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+
+          <div className="bg-white p-4 rounded-lg shadow">
+            <h3 className="font-semibold mb-2">Urutkan</h3>
+            <select value={sort} onChange={(e)=>setSort(e.target.value)} className="w-full border rounded px-2 py-1">
+              <option value="popular">Popular</option>
+              <option value="price-asc">Harga: Rendah &uarr;</option>
+              <option value="price-desc">Harga: Tinggi &darr;</option>
+              <option value="rating">Rating</option>
+            </select>
+          </div>
+
+          <CartPanel cart={cart} products={products} updateQty={updateQty} removeFromCart={removeFromCart} subtotal={subtotal} />
+        </aside>
+
+        <section className="lg:col-span-3">
+          {successMessage && <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-800 rounded">{successMessage}</div>}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filtered.map(product => (
+              <article key={product.id} className="bg-white rounded-lg shadow overflow-hidden flex flex-col">
+                <img src={product.img} alt={product.title} className="h-48 w-full object-cover" />
+                <div className="p-4 flex-1 flex flex-col">
+                  <h4 className="font-semibold text-lg">{product.title}</h4>
+                  <p className="text-sm text-gray-500 flex-1">{product.description}</p>
+                  <div className="mt-3 flex items-center justify-between">
+                    <div className="text-xl font-bold">{currency(product.price)}</div>
+                    <div className="flex items-center gap-2">
+                      <button onClick={()=>setSelected(product)} className="px-3 py-1 border rounded">Detail</button>
+                      <button onClick={()=>addToCart(product)} className="px-3 py-1 bg-indigo-600 text-white rounded">Add</button>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
         </section>
+      </main>
 
-        <!-- Cart Modal -->
-        <div id="cart-modal" class="fixed inset-0 bg-gray-800 bg-opacity-75 z-50 hidden flex items-center justify-center">
-            <div class="bg-white rounded-xl shadow-lg p-6 max-w-lg w-full m-4">
-                <div class="flex justify-between items-center border-b pb-3 mb-4">
-                    <h2 class="text-xl font-semibold">Keranjang Belanja</h2>
-                    <button id="close-cart-modal" class="text-gray-500 hover:text-gray-800 transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-                <div id="cart-items" class="max-h-80 overflow-y-auto mb-4">
-                    <!-- Cart items will be injected here -->
-                </div>
-                <div id="cart-summary" class="border-t pt-4">
-                    <div class="flex justify-between font-semibold text-lg mb-2">
-                        <span>Total:</span>
-                        <span id="cart-total">$0.00</span>
-                    </div>
-                    <button id="checkout-button" class="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors">Checkout</button>
-                </div>
+      <footer className="border-t py-6">
+        <div className="max-w-6xl mx-auto px-4 text-sm text-gray-500">© {new Date().getFullYear()} MyStore — Demo e‑commerce</div>
+      </footer>
+
+      {/* Product detail modal */}
+      {selected && (
+        <Modal onClose={()=>setSelected(null)}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <img src={selected.img} alt="" className="w-full h-64 object-cover rounded" />
+            <div>
+              <h3 className="text-2xl font-bold">{selected.title}</h3>
+              <p className="text-gray-600 mt-2">{selected.description}</p>
+              <div className="mt-4">
+                <div className="text-xl font-semibold">{currency(selected.price)}</div>
+                <div className="text-sm text-gray-500">Stock: {selected.stock} • Rating: {selected.rating}</div>
+              </div>
+              <div className="mt-6 flex items-center gap-3">
+                <button onClick={()=>{ addToCart(selected); setSelected(null); }} className="px-4 py-2 bg-indigo-600 text-white rounded">Tambah ke keranjang</button>
+                <button onClick={()=>setSelected(null)} className="px-4 py-2 border rounded">Tutup</button>
+              </div>
             </div>
-        </div>
+          </div>
+        </Modal>
+      )}
 
-        <!-- Checkout Modal -->
-        <div id="checkout-modal" class="fixed inset-0 bg-gray-800 bg-opacity-75 z-50 hidden flex items-center justify-center">
-            <div class="bg-white rounded-xl shadow-lg p-6 max-w-lg w-full m-4">
-                <div class="flex justify-between items-center border-b pb-3 mb-4">
-                    <h2 class="text-xl font-semibold">Formulir Checkout</h2>
-                    <button id="close-checkout-modal" class="text-gray-500 hover:text-gray-800 transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-                <form id="checkout-form">
-                    <div class="mb-4">
-                        <label for="name" class="block text-gray-700 text-sm font-bold mb-2">Nama Lengkap</label>
-                        <input type="text" id="name" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" required>
-                    </div>
-                    <div class="mb-4">
-                        <label for="email" class="block text-gray-700 text-sm font-bold mb-2">Email</label>
-                        <input type="email" id="email" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" required>
-                    </div>
-                    <div class="mb-4">
-                        <label for="address" class="block text-gray-700 text-sm font-bold mb-2">Alamat</label>
-                        <textarea id="address" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" rows="3" required></textarea>
-                    </div>
-                    <button type="submit" class="w-full bg-green-600 text-white py-2 rounded-lg font-semibold hover:bg-green-700 transition-colors">Bayar Sekarang</button>
-                </form>
+      {/* Checkout modal */}
+      {showCheckout && (
+        <Modal onClose={()=>setShowCheckout(false)}>
+          <CheckoutForm cart={cart} subtotal={subtotal} shipping={shipping} tax={tax} total={total} onBack={()=>setShowCheckout(false)} onPlaceOrder={placeOrder} />
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function CartPanel({ cart, products, updateQty, removeFromCart, subtotal }){
+  return (
+    <div className="bg-white p-4 rounded-lg shadow">
+      <h3 className="font-semibold mb-2">Keranjang</h3>
+      {cart.length === 0 && <div className="text-sm text-gray-500">Keranjang kosong</div>}
+      <ul className="space-y-3">
+        {cart.map(item => (
+          <li key={item.id} className="flex items-center gap-3">
+            <div className="flex-1">
+              <div className="font-medium">{item.title}</div>
+              <div className="text-sm text-gray-500">{currency(item.price)} • x{item.qty}</div>
             </div>
-        </div>
-
-        <!-- Confirmation Message -->
-        <div id="confirmation-message" class="fixed inset-0 bg-gray-800 bg-opacity-75 z-50 hidden flex items-center justify-center">
-            <div class="bg-white rounded-xl shadow-lg p-8 max-w-md w-full text-center">
-                <h2 class="text-2xl font-bold text-green-600 mb-4">Terima Kasih!</h2>
-                <p class="text-gray-700 mb-6">Pesanan Anda telah berhasil diproses.</p>
-                <button id="close-confirmation" class="bg-blue-600 text-white py-2 px-6 rounded-lg font-semibold hover:bg-blue-700 transition-colors">Tutup</button>
+            <div className="flex items-center gap-2">
+              <button onClick={()=>updateQty(item.id, item.qty-1)} className="px-2 py-1 border rounded">-</button>
+              <div className="w-8 text-center">{item.qty}</div>
+              <button onClick={()=>updateQty(item.id, item.qty+1)} className="px-2 py-1 border rounded">+</button>
+              <button onClick={()=>removeFromCart(item.id)} className="px-2 py-1 text-red-600">×</button>
             </div>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-4 border-t pt-3 text-sm">
+        <div className="flex items-center justify-between"><span>Subtotal</span><strong>{currency(subtotal)}</strong></div>
+      </div>
+    </div>
+  );
+}
+
+function Modal({ children, onClose }){
+  useEffect(()=>{
+    function onKey(e){ if(e.key === 'Escape') onClose(); }
+    document.addEventListener('keydown', onKey);
+    return ()=>document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black opacity-40" onClick={onClose} />
+      <div className="relative bg-white rounded-lg shadow max-w-3xl w-full p-6 z-10">{children}</div>
+    </div>
+  );
+}
+
+function CheckoutForm({ cart, subtotal, shipping, tax, total, onBack, onPlaceOrder }){
+  const [name, setName] = useState('');
+  const [address, setAddress] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  function submit(e){
+    e.preventDefault();
+    if(!name || !address) return alert('Lengkapi nama dan alamat');
+    setLoading(true);
+    setTimeout(()=>{
+      onPlaceOrder({ name, address });
+      setLoading(false);
+    }, 900);
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <h3 className="text-xl font-semibold">Checkout</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div>
+          <label className="text-sm">Nama</label>
+          <input value={name} onChange={(e)=>setName(e.target.value)} className="w-full border rounded px-2 py-2" />
         </div>
-    </main>
+        <div>
+          <label className="text-sm">Alamat</label>
+          <input value={address} onChange={(e)=>setAddress(e.target.value)} className="w-full border rounded px-2 py-2" />
+        </div>
+      </div>
 
-    <script>
-        // Data Produk (Anda bisa menambahkan lebih banyak produk di sini)
-        const products = [
-            { id: 1, name: 'T-Shirt Kasual', price: 25.00, image: 'https://placehold.co/400x400/FF5733/FFFFFF?text=T-Shirt' },
-            { id: 2, name: 'Celana Jeans Slim Fit', price: 55.00, image: 'https://placehold.co/400x400/33C7FF/FFFFFF?text=Jeans' },
-            { id: 3, name: 'Jaket Hoodie Hitam', price: 45.00, image: 'https://placehold.co/400x400/9633FF/FFFFFF?text=Hoodie' },
-            { id: 4, name: 'Sepatu Sneaker Putih', price: 70.00, image: 'https://placehold.co/400x400/33FF57/FFFFFF?text=Sneakers' },
-            { id: 5, name: 'Tas Ransel Kulit', price: 85.00, image: 'https://placehold.co/400x400/FF33A8/FFFFFF?text=Tas' },
-            { id: 6, name: 'Jam Tangan Elegan', price: 120.00, image: 'https://placehold.co/400x400/57FF33/FFFFFF?text=Jam+Tangan' }
-        ];
+      <div className="bg-gray-50 p-3 rounded">
+        <div className="flex items-center justify-between text-sm"><span>Subtotal</span><span>{currency(subtotal)}</span></div>
+        <div className="flex items-center justify-between text-sm"><span>Ongkos kirim</span><span>{currency(shipping)}</span></div>
+        <div className="flex items-center justify-between text-sm"><span>Tax</span><span>{currency(tax)}</span></div>
+        <div className="flex items-center justify-between font-semibold mt-2"><span>Total</span><span>{currency(total)}</span></div>
+      </div>
 
-        let cart = JSON.parse(localStorage.getItem('cart')) || [];
-        
-        // Elemen-elemen DOM
-        const productListEl = document.getElementById('product-list');
-        const cartButton = document.getElementById('cart-button');
-        const cartCountEl = document.getElementById('cart-count');
-        const cartModal = document.getElementById('cart-modal');
-        const closeCartModalButton = document.getElementById('close-cart-modal');
-        const cartItemsEl = document.getElementById('cart-items');
-        const cartTotalEl = document.getElementById('cart-total');
-        const checkoutButton = document.getElementById('checkout-button');
-        const checkoutModal = document.getElementById('checkout-modal');
-        const closeCheckoutModalButton = document.getElementById('close-checkout-modal');
-        const checkoutForm = document.getElementById('checkout-form');
-        const confirmationMessage = document.getElementById('confirmation-message');
-        const closeConfirmationButton = document.getElementById('close-confirmation');
+      <div className="flex items-center gap-3">
+        <button type="button" onClick={onBack} className="px-4 py-2 border rounded">Kembali</button>
+        <button type="submit" disabled={cart.length===0 || loading} className="px-4 py-2 bg-green-600 text-white rounded disabled:opacity-50">{loading ? 'Memproses...' : 'Bayar (Mock)'}</button>
+      </div>
+    </form>
+  );
+}
 
-        // Fungsi untuk merender daftar produk
-        function renderProducts() {
-            productListEl.innerHTML = '';
-            products.forEach(product => {
-                const productEl = document.createElement('div');
-                productEl.className = 'bg-white rounded-xl shadow-lg overflow-hidden flex flex-col';
-                productEl.innerHTML = `
-                    <div class="relative w-full h-48 overflow-hidden">
-                        <img src="${product.image}" alt="${product.name}" class="absolute inset-0 w-full h-full object-cover rounded-t-xl">
-                    </div>
-                    <div class="p-4 flex-grow flex flex-col justify-between">
-                        <h3 class="text-lg font-semibold text-gray-800 mb-2">${product.name}</h3>
-                        <p class="text-gray-600 mb-4">$${product.price.toFixed(2)}</p>
-                        <button class="add-to-cart-btn bg-blue-600 text-white py-2 px-4 rounded-full font-semibold hover:bg-blue-700 transition-colors self-start" data-id="${product.id}">
-                            Tambahkan ke Keranjang
-                        </button>
-                    </div>
-                `;
-                productListEl.appendChild(productEl);
-            });
-        }
-
-        // Fungsi untuk merender keranjang belanja
-        function renderCart() {
-            cartItemsEl.innerHTML = '';
-            let total = 0;
-            if (cart.length === 0) {
-                cartItemsEl.innerHTML = '<p class="text-center text-gray-500 italic">Keranjang belanja kosong.</p>';
-            } else {
-                cart.forEach(item => {
-                    const itemEl = document.createElement('div');
-                    itemEl.className = 'flex items-center justify-between py-2 border-b last:border-b-0';
-                    itemEl.innerHTML = `
-                        <div class="flex items-center">
-                            <img src="${item.image}" alt="${item.name}" class="w-16 h-16 rounded-md mr-4">
-                            <div>
-                                <h4 class="font-semibold text-gray-800">${item.name}</h4>
-                                <p class="text-gray-600 text-sm">Jumlah: ${item.quantity}</p>
-                                <p class="text-gray-600 text-sm">$${(item.price * item.quantity).toFixed(2)}</p>
-                            </div>
-                        </div>
-                        <button class="remove-item-btn text-red-500 hover:text-red-700 transition-colors" data-id="${item.id}">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                <path fill-rule="evenodd" d="M9 2a1 1 0 00-1 1v1H5a1 1 0 000 2h1v10a2 2 0 002 2h4a2 2 0 002-2V6h1a1 1 0 100-2h-3V3a1 1 0 00-1-1H9zM7 6v10h6V6H7z" clip-rule="evenodd" />
-                            </svg>
-                        </button>
-                    `;
-                    cartItemsEl.appendChild(itemEl);
-                    total += item.price * item.quantity;
-                });
-            }
-            cartTotalEl.textContent = `$${total.toFixed(2)}`;
-            cartCountEl.textContent = cart.reduce((sum, item) => sum + item.quantity, 0);
-            localStorage.setItem('cart', JSON.stringify(cart));
-        }
-
-        // Event listener untuk menambahkan produk ke keranjang
-        productListEl.addEventListener('click', (e) => {
-            if (e.target.classList.contains('add-to-cart-btn')) {
-                const productId = parseInt(e.target.dataset.id);
-                const product = products.find(p => p.id === productId);
-                const existingItem = cart.find(item => item.id === productId);
-
-                if (existingItem) {
-                    existingItem.quantity++;
-                } else {
-                    cart.push({ ...product, quantity: 1 });
-                }
-                renderCart();
-            }
-        });
-
-        // Event listener untuk menghapus item dari keranjang
-        cartItemsEl.addEventListener('click', (e) => {
-            if (e.target.closest('.remove-item-btn')) {
-                const productId = parseInt(e.target.closest('.remove-item-btn').dataset.id);
-                cart = cart.filter(item => item.id !== productId);
-                renderCart();
-            }
-        });
-
-        // Event listeners untuk modal
-        cartButton.addEventListener('click', () => {
-            cartModal.classList.remove('hidden');
-        });
-        closeCartModalButton.addEventListener('click', () => {
-            cartModal.classList.add('hidden');
-        });
-        checkoutButton.addEventListener('click', () => {
-            if (cart.length > 0) {
-                cartModal.classList.add('hidden');
-                checkoutModal.classList.remove('hidden');
-            }
-        });
-        closeCheckoutModalButton.addEventListener('click', () => {
-            checkoutModal.classList.add('hidden');
-        });
-
-        // Event listener untuk form checkout
-        checkoutForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            // Di sini Anda bisa menambahkan logika untuk memproses pembayaran
-            // Untuk demo ini, kita hanya akan menampilkan pesan konfirmasi
-            checkoutModal.classList.add('hidden');
-            confirmationMessage.classList.remove('hidden');
-            cart = []; // Kosongkan keranjang setelah checkout
-            renderCart();
-        });
-
-        // Event listener untuk pesan konfirmasi
-        closeConfirmationButton.addEventListener('click', () => {
-            confirmationMessage.classList.add('hidden');
-        });
-        
-        // Render awal saat halaman dimuat
-        document.addEventListener('DOMContentLoaded', () => {
-            renderProducts();
-            renderCart();
-        });
-
-    </script>
-
-</body>
-</html>
